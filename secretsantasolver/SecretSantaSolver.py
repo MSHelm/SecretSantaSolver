@@ -85,8 +85,8 @@ class SecretSantaSolver:
             path (str): Path to save the files
         """
         path = Path(path)
-        for i, name in enumerate(self.names):
+        for name, reciever in zip(self.names, self.recievers):
             fname = name + ".txt"
             with open(path / fname, "x") as f:
-                f.write(self.recievers[i])
+                f.write(reciever)
 
