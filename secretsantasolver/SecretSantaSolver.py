@@ -5,12 +5,13 @@ from pathlib import Path
 class SecretSantaSolver:
     """Solving Secret Santa Assignments
     """
-    def __init__(self, names: list, partners: list = None):
+    def __init__(self, names: list, partners: list = None, previous_recievers: list = None):
         """Initialize the solver
 
         Args:
             names (list): Names of involved people
             partners (list, optional): Names of their partners. Each partner must also be part of the names list. Defaults to None.
+            previous_recievers (list, optional): Name of previous reciever for each name. Defaults to None.
 
         Raises:
             ValueError: if names are not unique
@@ -20,11 +21,20 @@ class SecretSantaSolver:
         """
         self.names = names
         self.partners = partners
+        self.previous_recievers = previous_recievers
 
         # Check that names and partners are each unique
         if len(set(self.names)) != len(self.names):
             raise ValueError("Provided names are not unique!")
-
+        
+        # Check previous recievers, if provided
+        if self.previous_recievers is not None:
+            if len(set(self.previous_recievers)) != len(self.previous_recievers):
+                raise ValueError("Provided previous recievers are not unique!")
+            
+            # Previous recievers should be a subset (or identical) to the current names
+            if all([x in self.partners for x in self.previous_recievers]) == False:
+                raise ValueError("Provided previous_recievers contains names that are not in current names")
         
         if partners is not None:
             if len(set(self.partners)) != len(self.partners):
@@ -40,7 +50,7 @@ class SecretSantaSolver:
                 raise ValueError("Not all partners where included in the names list!")
         
 
-    def assign(self, prohibit_partners: bool = True):
+    def assign(self, prohibit_partners: bool = True, prohibit_previous_recievers: bool = False):
         """Assign the names to each other, based on the settings
 
         Sets the reciever attribute of the class to the assigned giftees.
@@ -48,20 +58,38 @@ class SecretSantaSolver:
 
         Args:
             prohibit_partners (bool, optional): Whether partners should be prevented to be assigned to each other. Defaults to True.
+            prohibit_previous_recievers (bool, optional): Whether previous reciever should be prevented to be assigned again. Default sto False.
         """
+        # Check that prohibition flags also have necessary information from object instatiation
+        if prohibit_partners and self.partners is None:
+            raise ValueError("Requested to prohibit partners, but no partners provided!")
+        if prohibit_previous_recievers and self.previous_recievers is None:
+            raise ValueError("Requested to prohibit previous reciever, but not previous recievers provided!")
+
         self.prohibit_partners = prohibit_partners
+        self.prohibit_previous_recievers = prohibit_previous_recievers
+
         recievers_available = copy.deepcopy(self.names)
         recievers = []
 
+        k = 0
         while len(recievers) == 0:
-            for name in self.names:
-                # Remove self and partner (if requested)
+            for i, name in enumerate(self.names):
+                # Define allowed recievers, based on prohibited partners or previous recievers.
+                excluded_recievers = [name] # Never gift yourself :)
                 if self.prohibit_partners and self.partners is not None:
-                    partner = self.partners[self.names.index(name)]
-                    candidates = [x for x in recievers_available if x not in [name, partner]]
-                else:
-                    candidates = [x for x in recievers_available if x not in name]
+                    partner = self.partners[i]
+                    excluded_recievers.append(partner)
+                # Remove self and partner (if requested)
+                if self.prohibit_previous_recievers and self.prohibit_previous_recievers is not None:
+                    previous_reciever = self.previous_recievers[i]
+                    excluded_recievers.append(previous_reciever)
 
+                print(f"Excluded recievers for {name}: {excluded_recievers}")
+                
+                candidates = [x for x in recievers_available if x not in excluded_recievers]
+                print(f"Candidates for {name}: {candidates}")
+                
                 if len(candidates) == 0:
                     # If no candidates remain we have run into a problem. Reset recievers and available recievers and start again.
                     recievers = []
@@ -71,6 +99,11 @@ class SecretSantaSolver:
                     reciever = random.choice(candidates)
                     recievers.append(reciever)
                     recievers_available.remove(reciever)
+            k += 1
+
+            # Break if we cannot find a solution after an appropriate number of tries. This indicates a combination for which a solution is impossible)
+            if k > 100:
+                raise ValueError("Did not find a solution after 100 iterations. Maybe there is no possible solution?")
 
         self.recievers = recievers
     
@@ -89,4 +122,3 @@ class SecretSantaSolver:
             fname = name + ".txt"
             with open(path / fname, "x") as f:
                 f.write(reciever)
-
